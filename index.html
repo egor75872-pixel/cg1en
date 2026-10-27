@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Егор Control (P2P Radmin)</title>
+  <style>
+    body { background: #0f051a; color: #bc66ff; font-family: monospace; padding: 20px; }
+    .box { background: #1a0b2e; border: 1px solid #bc66ff; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+    textarea { width: 100%; height: 80px; background: #000; color: #00ff88; border: 1px solid #bc66ff; }
+    button { background: #bc66ff; color: #000; font-weight: bold; padding: 8px 15px; border: none; cursor: pointer; }
+    button:hover { background: #d399ff; }
+  </style>
+</head>
+<body>
+  <h2>👑 Панель Егора (P2P Host)</h2>
+
+  <div class="box">
+    <h3>1. Шаг: Создать подключение</h3>
+    <button onclick="createOffer()">Сгенерировать код связи</button><br><br>
+    <label>Твой код (Отправь Ахтунгу):</label>
+    <textarea id="myOffer" readonly></textarea>
+  </div>
+
+  <div class="box">
+    <h3>2. Шаг: Вставить ответ Ахтунга</h3>
+    <textarea id="hisAnswer" placeholder="Вставь сюда ответный код от Ахтунга..."></textarea><br><br>
+    <button onclick="acceptAnswer()">Подключиться к Ахтунгу</button>
+  </div>
+
+  <div class="box">
+    <h3>3. Прикол со звуком (Audio Stream)</h3>
+    <input type="file" id="audioInput" accept="audio/*"><br><br>
+    <button onclick="playAndStream()">🚀 Врубить аудио Ахтунгу</button>
+    <audio id="localAudio" controls style="margin-top:10px; display:block;"></audio>
+  </div>
+
+  <script>
+    let pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    let audioCtx, source, streamDestination;
+
+    async function createOffer() {
+      // Канал данных
+      pc.createDataChannel('control');
+      
+      // Готовим аудио-трансляцию
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      streamDestination = audioCtx.createMediaStreamDestination();
+      streamDestination.stream.getTracks().forEach(track => pc.addTrack(track, streamDestination.stream));
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      pc.onicecandidate = (e) => {
+        if (!e.candidate) {
+          document.getElementById('myOffer').value = JSON.stringify(pc.localDescription);
+        }
+      };
+    }
+
+    async function acceptAnswer() {
+      const answerStr = document.getElementById('hisAnswer').value;
+      if (!answerStr) return alert('Вставь код!');
+      const answer = JSON.parse(answerStr);
+      await pc.setRemoteDescription(answer);
+      alert('P2P Канал укомплектован! Вы связаны.');
+    }
+
+    function playAndStream() {
+      const file = document.getElementById('audioInput').files[0];
+      if (!file) return alert('Выбери аудиофайл!');
+
+      const url = URL.createObjectURL(file);
+      const audio = document.getElementById('localAudio');
+      audio.src = url;
+      audio.play();
+
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        streamDestination = audioCtx.createMediaStreamDestination();
+        streamDestination.stream.getTracks().forEach(track => pc.addTrack(track, streamDestination.stream));
+      }
+
+      source = audioCtx.createMediaElementSource(audio);
+      source.connect(audioCtx.destination);
+      source.connect(streamDestination);
+    }
+  </script>
+</body>
+</html>
